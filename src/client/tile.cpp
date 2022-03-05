@@ -34,6 +34,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 #include "guiscalingfilter.h"
 #include "renderingengine.h"
 #include "util/base64.h"
+#include "util/png.h"
 
 /*
 	A cache from texture name to texture path
@@ -1826,6 +1827,48 @@ bool TextureSource::generateImagePart(std::string part_of_name,
 				pngimg->copyTo(baseimg);
 			}
 			pngimg->drop();
+		}
+		else if (str_starts_with(part_of_name, "[save:")) {
+			Strfnd sf(part_of_name);
+			sf.next(":");
+			std::string save_file_name = sf.next("");
+			errorstream << "generateImagePart(): "
+						<< "Requested to save at "
+						<< save_file_name
+						<< std::endl;
+
+			if (!baseimg) {
+				errorstream << "baseimg is not available." << std::endl;
+				return false;
+			}
+
+			const u32 width = baseimg->getDimension().Width;
+			const u32 height = baseimg->getDimension().Height;
+			const u32 byte_count = width * height * 4;
+
+			std::vector<u8> data(byte_count);
+
+			for (u32 x = 0; x < width; ++x) {
+				for (u32 y = 0; y < height; ++y) {
+					const u32 pos = (width * y + x) * 4;
+					const video::SColor c = baseimg->getPixel(x, y);
+					data[pos] = c.getRed();
+					data[pos + 1] = c.getGreen();
+					data[pos + 2] = c.getBlue();
+					data[pos + 3] = c.getAlpha();
+				}
+			}
+
+			const std::string png_data = encodePNG(data.data(), width, height, 6);
+
+			std::ofstream save_file;
+			save_file.open(save_file_name);
+			if (!save_file.is_open()) {
+				errorstream << "Could not open " << save_file_name << std::endl;
+				return false;
+			}
+			save_file << png_data;
+			save_file.close();
 		}
 		else
 		{
